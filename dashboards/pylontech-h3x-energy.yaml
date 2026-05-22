@@ -96,19 +96,7 @@ views:
         content: |
           {% set plan_entity = 'sensor.pylontech_h3x_energy_arbitrage_price_plan' %}
           {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
-
-          <table>
-            <thead>
-              <tr>
-                <th>Slot</th>
-                <th>When</th>
-                <th>Price</th>
-                <th>Power</th>
-                <th>Energy</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
+          {% set summary = namespace(lines='| Slot | When | Price | Power | Energy | Value |\n|---|---|---:|---:|---:|---:|\n') %}
           {% for item in [
             ('Charge', 'sensor.pylontech_h3x_energy_arbitrage_next_charge_slot'),
             ('Discharge', 'sensor.pylontech_h3x_energy_arbitrage_next_discharge_slot'),
@@ -121,17 +109,14 @@ views:
           {% set power_w = state_attr(entity_id, 'target_power_w') %}
           {% set energy = state_attr(entity_id, 'energy_kwh') %}
           {% set value = state_attr(entity_id, 'value') %}
-              <tr>
-                <td><strong>{{ item[0] }}</strong></td>
-                <td>{{ display_state if display_state not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not planned' }}</td>
-                <td>{% if price is not none %}{{ (price | float(0)) | round(3) }} {{ currency }}/kWh{% else %}-{% endif %}</td>
-                <td>{% if power_w is not none %}{{ (power_w | float(0) / 1000) | round(1) }} kW{% else %}-{% endif %}</td>
-                <td>{% if energy is not none %}{{ (energy | float(0)) | round(2) }} kWh{% else %}-{% endif %}</td>
-                <td>{% if value is not none %}{{ (value | float(0)) | round(2) }} {{ currency }}{% else %}-{% endif %}</td>
-              </tr>
+          {% set when = display_state if display_state not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not planned' %}
+          {% set price_text = ((price | float(0)) | round(3) ~ ' ' ~ currency ~ '/kWh') if price is not none else '-' %}
+          {% set power_text = (((power_w | float(0) / 1000) | round(1)) ~ ' kW') if power_w is not none else '-' %}
+          {% set energy_text = (((energy | float(0)) | round(2)) ~ ' kWh') if energy is not none else '-' %}
+          {% set value_text = (((value | float(0)) | round(2)) ~ ' ' ~ currency) if value is not none else '-' %}
+          {% set summary.lines = summary.lines ~ '| ' ~ item[0] ~ ' | ' ~ when ~ ' | ' ~ price_text ~ ' | ' ~ power_text ~ ' | ' ~ energy_text ~ ' | ' ~ value_text ~ ' |\n' %}
           {% endfor %}
-            </tbody>
-          </table>
+          {{ summary.lines }}
 
           {% set plan = state_attr(plan_entity, 'dispatch_plan') or [] %}
           {% set actionable = plan | selectattr('action', 'ne', 'idle') | list %}
@@ -140,30 +125,17 @@ views:
 
           Only charge and discharge rows are shown here. Idle 15-minute diagnostic rows are intentionally hidden. Values can change whenever Nord Pool prices, SOC, load, or grid-limit readings update.
 
-          <table>
-            <thead>
-              <tr>
-                <th>Start</th>
-                <th>Action</th>
-                <th>Price</th>
-                <th>Power</th>
-                <th>Energy</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
+          {% set actions = namespace(lines='| Start | Action | Price | Power | Energy | Value |\n|---|---|---:|---:|---:|---:|\n') %}
           {% for slot in actionable[:8] %}
-              <tr>
-                <td>{{ slot.start[5:16] | replace('T', ' ') }}</td>
-                <td>{{ slot.action | title }}</td>
-                <td>{{ ((slot.price | default(0)) | float(0)) | round(3) }} {{ currency }}/kWh</td>
-                <td>{{ ((slot.target_power_w | default(0)) | float(0) / 1000) | round(1) }} kW</td>
-                <td>{{ ((slot.energy_kwh | default(0)) | float(0)) | round(2) }} kWh</td>
-                <td>{{ ((slot.value | default(0)) | float(0)) | round(2) }} {{ currency }}</td>
-              </tr>
+          {% set start = (slot.start | default('-'))[5:16] | replace('T', ' ') %}
+          {% set action = slot.action | default('-') | title %}
+          {% set price_text = (((slot.price | default(0)) | float(0)) | round(3)) ~ ' ' ~ currency ~ '/kWh' %}
+          {% set power_text = ((((slot.target_power_w | default(0)) | float(0) / 1000) | round(1)) ~ ' kW') %}
+          {% set energy_text = ((((slot.energy_kwh | default(0)) | float(0)) | round(2)) ~ ' kWh') %}
+          {% set value_text = ((((slot.value | default(0)) | float(0)) | round(2)) ~ ' ' ~ currency) %}
+          {% set actions.lines = actions.lines ~ '| ' ~ start ~ ' | ' ~ action ~ ' | ' ~ price_text ~ ' | ' ~ power_text ~ ' | ' ~ energy_text ~ ' | ' ~ value_text ~ ' |\n' %}
           {% endfor %}
-            </tbody>
-          </table>
+          {{ actions.lines }}
           {% if actionable | count > 8 %}
           Showing the first 8 of {{ actionable | count }} planned charge/discharge rows.
           {% endif %}

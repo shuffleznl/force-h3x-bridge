@@ -181,34 +181,21 @@ views:
           {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
           {% set plan = state_attr(plan_entity, 'dispatch_plan') or [] %}
           {% set actionable = plan | selectattr('action', 'ne', 'idle') | list %}
-
-          <table>
-            <thead>
-              <tr>
-                <th>Start</th>
-                <th>Action</th>
-                <th>Price</th>
-                <th>Power</th>
-                <th>Energy</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
+          {% set actions = namespace(lines='| Start | Action | Price | Power | Energy | Value |\n|---|---|---:|---:|---:|---:|\n') %}
           {% for slot in actionable[:10] %}
-              <tr>
-                <td>{{ slot.start[5:16] | replace('T', ' ') }}</td>
-                <td>{{ slot.action | title }}</td>
-                <td>{{ ((slot.price | default(0)) | float(0)) | round(3) }} {{ currency }}/kWh</td>
-                <td>{{ ((slot.target_power_w | default(0)) | float(0) / 1000) | round(1) }} kW</td>
-                <td>{{ ((slot.energy_kwh | default(0)) | float(0)) | round(2) }} kWh</td>
-                <td>{{ ((slot.value | default(0)) | float(0)) | round(2) }} {{ currency }}</td>
-              </tr>
+          {% set start = (slot.start | default('-'))[5:16] | replace('T', ' ') %}
+          {% set action = slot.action | default('-') | title %}
+          {% set price_text = (((slot.price | default(0)) | float(0)) | round(3)) ~ ' ' ~ currency ~ '/kWh' %}
+          {% set power_text = ((((slot.target_power_w | default(0)) | float(0) / 1000) | round(1)) ~ ' kW') %}
+          {% set energy_text = ((((slot.energy_kwh | default(0)) | float(0)) | round(2)) ~ ' kWh') %}
+          {% set value_text = ((((slot.value | default(0)) | float(0)) | round(2)) ~ ' ' ~ currency) %}
+          {% set actions.lines = actions.lines ~ '| ' ~ start ~ ' | ' ~ action ~ ' | ' ~ price_text ~ ' | ' ~ power_text ~ ' | ' ~ energy_text ~ ' | ' ~ value_text ~ ' |\n' %}
           {% endfor %}
-            </tbody>
-          </table>
           {% if actionable | count == 0 %}
           No charge or discharge actions are currently planned.
           {% else %}
+          {{ actions.lines }}
+
           The table intentionally hides idle diagnostic rows. Planned values can move when prices, SOC, load, or grid limits update.
           {% endif %}
 
