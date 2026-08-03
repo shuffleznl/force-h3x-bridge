@@ -12,7 +12,10 @@ views:
           {% set reason = states('sensor.pylontech_h3x_energy_arbitrage_decision_reason') %}
           {% set price = states('sensor.pylontech_h3x_energy_arbitrage_current_price') %}
           {% set value = states('sensor.pylontech_h3x_energy_arbitrage_estimated_savings') %}
+          {% set today_value = states('sensor.pylontech_h3x_energy_arbitrage_estimated_savings_today') %}
           {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
+          {% set load_source = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'home_load_power_source') %}
+          {% set solar_source = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'solar_forecast_source') %}
 
           **Decision:** {{ decision if decision not in ['unknown', 'unavailable', 'none', 'None', ''] else 'waiting for optimizer data' }}
 
@@ -20,10 +23,12 @@ views:
 
           **Current price:** {% if price not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ price }} {{ currency }}/kWh{% else %}waiting for Nord Pool price data{% endif %}
 
-          **Estimated value:** {% if value not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ value }} {{ currency }} over the active optimization horizon.{% else %}waiting for price, SOC, and capacity data{% endif %}
+          **Estimated value:** {% if value not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ value }} {{ currency }} horizon / {{ today_value }} {{ currency }} today{% else %}waiting for price, SOC, and capacity data{% endif %}
+
+          **Forecast inputs:** {{ load_source or 'load source unavailable' }}; {{ solar_source or 'solar forecast unavailable' }}
 
       - type: entities
-        title: Arbitrage controls
+        title: Arbitrage and PV controls
         show_header_toggle: false
         entities:
           - entity: select.pylontech_h3x_energy_arbitrage_strategy_profile
@@ -48,6 +53,14 @@ views:
             name: Maximum charge C-rate
           - entity: number.pylontech_h3x_energy_arbitrage_maximum_discharge_c_rate
             name: Maximum discharge C-rate
+          - entity: select.pylontech_h3x_energy_arbitrage_pv_orientation
+            name: PV orientation
+          - entity: number.pylontech_h3x_energy_arbitrage_pv_panel_count
+            name: PV panel count
+          - entity: number.pylontech_h3x_energy_arbitrage_pv_panel_wp_rating
+            name: PV panel Wp rating
+          - entity: number.pylontech_h3x_energy_arbitrage_pv_inverter_limit
+            name: PV inverter limit
 
       - type: grid
         title: Current state
@@ -87,57 +100,102 @@ views:
             name: Battery power
             icon: mdi:battery-charging
           - type: tile
-            entity: sensor.pylontech_h3x_bridge_load_power
-            name: House load
+            entity: sensor.pylontech_h3x_energy_arbitrage_home_load_power
+            name: Home load
             icon: mdi:home-lightning-bolt
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_solar_power
+            name: Solar power
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_power
+            name: Forecast load
+            icon: mdi:home-analytics
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_power
+            name: Forecast solar
+            icon: mdi:weather-sunny
 
       - type: markdown
-        title: Next planned slots
+        title: Planned actions
         content: |
           {% set plan_entity = 'sensor.pylontech_h3x_energy_arbitrage_price_plan' %}
           {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
-          {% set summary = namespace(lines='| Slot | When | Price | Power | Energy | Value |\n|---|---|---:|---:|---:|---:|\n') %}
+          | Slot | When | Price | Power | Energy | Source/effect | Value |
+          |---|---|---:|---:|---:|---|---:|
           {% for item in [
             ('Charge', 'sensor.pylontech_h3x_energy_arbitrage_next_charge_slot'),
             ('Discharge', 'sensor.pylontech_h3x_energy_arbitrage_next_discharge_slot'),
             ('Full charge', 'sensor.pylontech_h3x_energy_arbitrage_periodic_full_charge_slot')
           ] %}
           {% set entity_id = item[1] %}
-          {% set state = states(entity_id) %}
-          {% set display_state = state[5:16] | replace('T', ' ') if state[:4] | int(0) > 2000 else state | replace('_', ' ') %}
+          {% set raw = states(entity_id) %}
+          {% set when = raw[5:16] | replace('T', ' ') if raw[:4] | int(0) > 2000 else raw | replace('_', ' ') %}
           {% set price = state_attr(entity_id, 'price') %}
           {% set power_w = state_attr(entity_id, 'target_power_w') %}
           {% set energy = state_attr(entity_id, 'energy_kwh') %}
           {% set value = state_attr(entity_id, 'value') %}
-          {% set when = display_state if display_state not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not planned' %}
-          {% set price_text = ((price | float(0)) | round(3) ~ ' ' ~ currency ~ '/kWh') if price is not none else '-' %}
-          {% set power_text = (((power_w | float(0) / 1000) | round(1)) ~ ' kW') if power_w is not none else '-' %}
-          {% set energy_text = (((energy | float(0)) | round(2)) ~ ' kWh') if energy is not none else '-' %}
-          {% set value_text = (((value | float(0)) | round(2)) ~ ' ' ~ currency) if value is not none else '-' %}
-          {% set summary.lines = summary.lines ~ '| ' ~ item[0] ~ ' | ' ~ when ~ ' | ' ~ price_text ~ ' | ' ~ power_text ~ ' | ' ~ energy_text ~ ' | ' ~ value_text ~ ' |\n' %}
+          {% set grid_charge = state_attr(entity_id, 'grid_charge_kwh') %}
+          {% set solar_charge = state_attr(entity_id, 'solar_charge_kwh') %}
+          {% set self_use = state_attr(entity_id, 'self_consumption_kwh') %}
+          {% set export = state_attr(entity_id, 'battery_export_kwh') %}
+          {% set price_value = (price | float(0)) | round(3) %}
+          {% set power_value = ((power_w | float(0)) / 1000) | round(1) %}
+          {% set energy_value = (energy | float(0)) | round(2) %}
+          {% set value_value = (value | float(0)) | round(2) %}
+          {% set price_text = price_value ~ ' ' ~ currency ~ '/kWh' if price is not none else '-' %}
+          {% set power_text = power_value ~ ' kW' if power_w is not none else '-' %}
+          {% set energy_text = energy_value ~ ' kWh' if energy is not none else '-' %}
+          {% set value_text = value_value ~ ' ' ~ currency if value is not none else '-' %}
+          {% if item[0] == 'Charge' %}
+          {% set solar_kwh = (solar_charge | float(0)) | round(2) %}
+          {% set grid_kwh = (grid_charge | float(0)) | round(2) %}
+          {% set split = solar_kwh ~ ' solar / ' ~ grid_kwh ~ ' grid kWh' if solar_charge is not none or grid_charge is not none else '-' %}
+          {% elif item[0] == 'Discharge' %}
+          {% set self_kwh = (self_use | float(0)) | round(2) %}
+          {% set export_kwh = (export | float(0)) | round(2) %}
+          {% set split = self_kwh ~ ' self / ' ~ export_kwh ~ ' export kWh' if self_use is not none or export is not none else '-' %}
+          {% else %}
+          {% set split = 'periodic top-balance target' %}
+          {% endif %}
+          | {{ item[0] }} | {{ when if when not in ['unknown', 'unavailable', 'none', 'None', ''] else 'not planned' }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ value_text }} |
           {% endfor %}
-          {{ summary.lines }}
 
           {% set plan = state_attr(plan_entity, 'dispatch_plan') or [] %}
           {% set actionable = plan | selectattr('action', 'ne', 'idle') | list %}
           {% if actionable | count > 0 %}
           **Upcoming optimizer actions**
 
-          Only charge and discharge rows are shown here. Idle 15-minute diagnostic rows are intentionally hidden. Values can change whenever Nord Pool prices, SOC, load, or grid-limit readings update.
+          Idle diagnostic rows are hidden. Planned values can change whenever prices, SOC, load, PV forecast, or grid-limit readings update.
 
-          {% set actions = namespace(lines='| Start | Action | Price | Power | Energy | Value |\n|---|---|---:|---:|---:|---:|\n') %}
-          {% for slot in actionable[:8] %}
+          | Start | Action | Price | Power | Energy | Source/effect | Value |
+          |---|---|---:|---:|---:|---|---:|
+          {% for slot in actionable[:10] %}
           {% set start = (slot.start | default('-'))[5:16] | replace('T', ' ') %}
           {% set action = slot.action | default('-') | title %}
-          {% set price_text = (((slot.price | default(0)) | float(0)) | round(3)) ~ ' ' ~ currency ~ '/kWh' %}
-          {% set power_text = ((((slot.target_power_w | default(0)) | float(0) / 1000) | round(1)) ~ ' kW') %}
-          {% set energy_text = ((((slot.energy_kwh | default(0)) | float(0)) | round(2)) ~ ' kWh') %}
-          {% set value_text = ((((slot.value | default(0)) | float(0)) | round(2)) ~ ' ' ~ currency) %}
-          {% set actions.lines = actions.lines ~ '| ' ~ start ~ ' | ' ~ action ~ ' | ' ~ price_text ~ ' | ' ~ power_text ~ ' | ' ~ energy_text ~ ' | ' ~ value_text ~ ' |\n' %}
+          {% set price_value = (slot.price | default(0) | float(0)) | round(3) %}
+          {% set power_value = ((slot.target_power_w | default(0) | float(0)) / 1000) | round(1) %}
+          {% set energy_value = (slot.energy_kwh | default(0) | float(0)) | round(2) %}
+          {% set value_value = (slot.value | default(0) | float(0)) | round(2) %}
+          {% set price_text = price_value ~ ' ' ~ currency ~ '/kWh' %}
+          {% set power_text = power_value ~ ' kW' %}
+          {% set energy_text = energy_value ~ ' kWh' %}
+          {% set value_text = value_value ~ ' ' ~ currency %}
+          {% if slot.action == 'charge' %}
+          {% set solar_kwh = (slot.solar_charge_kwh | default(0) | float(0)) | round(2) %}
+          {% set grid_kwh = (slot.grid_charge_kwh | default(0) | float(0)) | round(2) %}
+          {% set split = solar_kwh ~ ' solar / ' ~ grid_kwh ~ ' grid kWh' %}
+          {% elif slot.action == 'discharge' %}
+          {% set self_kwh = (slot.self_consumption_kwh | default(0) | float(0)) | round(2) %}
+          {% set export_kwh = (slot.battery_export_kwh | default(0) | float(0)) | round(2) %}
+          {% set split = self_kwh ~ ' self / ' ~ export_kwh ~ ' export kWh' %}
+          {% else %}
+          {% set split = '-' %}
+          {% endif %}
+          | {{ start }} | {{ action }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ value_text }} |
           {% endfor %}
-          {{ actions.lines }}
-          {% if actionable | count > 8 %}
-          Showing the first 8 of {{ actionable | count }} planned charge/discharge rows.
+          {% if actionable | count > 10 %}
+          Showing the first 10 of {{ actionable | count }} planned charge/discharge rows.
           {% endif %}
           {% else %}
           No charge or discharge rows are currently planned. The optimizer is holding idle for the visible horizon.
@@ -166,7 +224,7 @@ views:
             decimals: 1
             apex_config:
               title:
-                text: kW
+                text: Battery kW
         apex_config:
           chart:
             height: 360
@@ -223,6 +281,95 @@ views:
                 if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
                 const signedKw = slot.action === "charge" ? -kw : kw;
                 return [[start, signedKw], [end, signedKw]];
+              });
+
+      - type: custom:apexcharts-card
+        graph_span: 36h
+        span:
+          start: hour
+        now:
+          show: true
+          label: Now
+        header:
+          show: true
+          title: Load, solar, and net-grid forecast
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: power
+            decimals: 1
+            apex_config:
+              title:
+                text: kW
+        apex_config:
+          chart:
+            height: 340
+          stroke:
+            width: 2
+          tooltip:
+            shared: true
+          legend:
+            show: true
+        series:
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Forecast load
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#7f7f7f"
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.power_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
+              });
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Forecast solar
+            yaxis_id: power
+            type: area
+            curve: smooth
+            color: "#ffbf00"
+            opacity: 0.25
+            data_generator: |
+              const forecast = entity.attributes.solar_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.power_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(kw)) return null;
+                return [start, kw];
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Net grid without battery
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#d62728"
+            data_generator: |
+              const plan = entity.attributes.dispatch_plan || [];
+              return plan.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.net_grid_without_battery_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
+              });
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Net grid with battery
+            yaxis_id: power
+            type: line
+            curve: stepline
+            color: "#2ca02c"
+            data_generator: |
+              const plan = entity.attributes.dispatch_plan || [];
+              return plan.flatMap((slot) => {
+                const start = new Date(slot.start).getTime();
+                const end = new Date(slot.end).getTime();
+                const kw = Number(slot.net_grid_with_battery_w || 0) / 1000;
+                if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
+                return [[start, kw], [end, kw]];
               });
 
       - type: custom:apexcharts-card
@@ -304,7 +451,7 @@ views:
               duration: 15min
 
       - type: grid
-        title: Estimated arbitrage value
+        title: Estimated value and energy balance
         columns: 3
         square: false
         cards:
@@ -328,6 +475,30 @@ views:
             entity: sensor.pylontech_h3x_energy_arbitrage_planned_discharge_energy
             name: Planned discharge
             icon: mdi:battery-minus
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_planned_grid_charge_energy
+            name: Grid charge
+            icon: mdi:transmission-tower-import
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_planned_solar_charge_energy
+            name: Solar charge
+            icon: mdi:solar-power-variant
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_planned_self_consumption_energy
+            name: Battery to home
+            icon: mdi:home-battery
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_planned_battery_export_energy
+            name: Battery export
+            icon: mdi:transmission-tower-export
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_energy
+            name: Forecast load energy
+            icon: mdi:home-analytics
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_energy
+            name: Forecast solar energy
+            icon: mdi:solar-power
           - type: tile
             entity: sensor.pylontech_h3x_energy_arbitrage_price_slots_available
             name: Price slots
@@ -363,6 +534,47 @@ views:
             name: BMS temperature
           - entity: sensor.pylontech_h3x_bridge_bms_soh
             name: BMS SOH
+
+      - type: entities
+        title: Forecast diagnostics
+        show_header_toggle: false
+        entities:
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: home_load_power_source
+            name: Load source
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: solar_power_entity
+            name: Solar power entity
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: solar_forecast_source
+            name: Solar forecast source
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: solar_forecast_scale
+            name: Solar forecast scale
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: pv_orientation
+            name: PV orientation
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: pv_panel_count
+            name: PV panel count
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: pv_panel_wp
+            name: PV panel Wp
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: pv_peak_power_w
+            name: PV peak power
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: pv_inverter_limit_w
+            name: PV inverter limit
 
       - type: entities
         title: Arbitrage diagnostics
