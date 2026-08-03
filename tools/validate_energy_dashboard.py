@@ -8,6 +8,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "dashboards" / "pylontech-h3x-energy.yaml"
+PACKAGED_DASHBOARD = (
+    ROOT
+    / "custom_components"
+    / "pylontech_h3x_bridge"
+    / "dashboards"
+    / "pylontech-h3x-energy.yaml"
+)
 REMOVED_DASHBOARD = ROOT / "dashboards" / (
     "pylontech-h3x-energy-" + "plot" + "ly.yaml"
 )
@@ -34,10 +41,14 @@ def main() -> None:
     """Run dashboard checks."""
     if not DASHBOARD.exists():
         raise AssertionError("default energy dashboard is missing")
+    if not PACKAGED_DASHBOARD.exists():
+        raise AssertionError("HACS-packaged energy dashboard is missing")
     if REMOVED_DASHBOARD.exists():
         raise AssertionError("secondary dashboard variant must be removed")
 
     dashboard = read(DASHBOARD)
+    if read(PACKAGED_DASHBOARD) != dashboard:
+        raise AssertionError("repository and HACS-packaged dashboards differ")
     dashboards_readme = read(ROOT / "dashboards" / "README.md")
     root_readme = read(ROOT / "README.md")
     combined_docs = dashboards_readme + "\n" + root_readme
@@ -88,6 +99,11 @@ def main() -> None:
     reject(dashboard, "title: Forecast diagnostics", "dashboard")
 
     require(dashboards_readme, "`v0.7.0` or newer", "dashboard README")
+    require(
+        dashboards_readme,
+        "custom_components/pylontech_h3x_bridge/dashboards/",
+        "dashboard README",
+    )
     require(root_readme, "Shelly/SMA load and solar data", "root README")
 
 

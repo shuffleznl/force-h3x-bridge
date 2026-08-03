@@ -39,13 +39,15 @@ The H3X integration writes Modbus register `40907` for EMS mode and `40901` for 
 
 ## Optional Energy Dashboard
 
-A Lovelace dashboard is provided in:
+A Lovelace dashboard is provided in the repository and packaged inside the
+HACS integration directory:
 
 ```text
 dashboards/pylontech-h3x-energy.yaml
+custom_components/pylontech_h3x_bridge/dashboards/pylontech-h3x-energy.yaml
 ```
 
-It shows dynamic prices, current arbitrage decisions, planned charge/discharge slots, estimated value, Shelly/SMA load and solar data, PV forecast controls, battery power, and battery SOC. See [dashboards/README.md](dashboards/README.md) for installation.
+It shows dynamic prices, current arbitrage decisions, planned charge/discharge slots, estimated value, Shelly/SMA load and solar data, PV forecast controls, battery power, and battery SOC. Configure Home Assistant to use the packaged copy so HACS updates refresh it; see [dashboards/README.md](dashboards/README.md) for installation.
 
 The price and decision cards require the optional `h3x-energy-arbitrage` HACS integration. The rich charts use `apexcharts-card` from HACS.
 

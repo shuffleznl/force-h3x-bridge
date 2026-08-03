@@ -24,10 +24,12 @@ The dashboard uses ApexCharts for price, dispatch, forecast, power, and SOC hist
 
 ## Install The YAML Dashboard
 
-Copy `dashboards/pylontech-h3x-energy.yaml` into your Home Assistant config directory, for example:
+Bridge `v0.3.8` and newer package the dashboard inside the HACS-managed
+integration directory. Point Home Assistant directly at that copy so a HACS
+upgrade refreshes the dashboard automatically:
 
 ```text
-config/dashboards/pylontech-h3x-energy.yaml
+config/custom_components/pylontech_h3x_bridge/dashboards/pylontech-h3x-energy.yaml
 ```
 
 Then add this to `configuration.yaml`:
@@ -41,10 +43,12 @@ lovelace:
       title: Pylontech H3X Energy
       icon: mdi:battery-charging-70
       show_in_sidebar: true
-      filename: dashboards/pylontech-h3x-energy.yaml
+      filename: custom_components/pylontech_h3x_bridge/dashboards/pylontech-h3x-energy.yaml
 ```
 
-Restart Home Assistant or reload Lovelace resources after installing `apexcharts-card`.
+Restart Home Assistant after changing the dashboard filename. For later bridge
+updates, update through HACS and refresh the browser after the integration files
+have been replaced.
 
 ## Planned Slot Display
 
