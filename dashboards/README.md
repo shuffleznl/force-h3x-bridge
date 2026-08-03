@@ -8,9 +8,10 @@ It shows:
 - current optimizer decision and reason,
 - planned charge/discharge slots with grid-charge, solar-charge, self-consumption, and export split,
 - estimated arbitrage value for today and for the active horizon,
+- baseline-versus-optimized grid cost, modeled battery wear, action penalties, and planned equivalent cycles,
 - Shelly/SMA load and solar readings when configured,
-- basic PV forecast controls and diagnostics,
-- load, solar, and net-grid forecast charts,
+- historical load-learning, optional EV-analysis, Dutch tariff, risk, and anti-chatter controls,
+- load forecast p10/p50/p90, solar, net-grid, price, dispatch, battery-power, and SOC charts,
 - battery power and state-of-charge over time,
 - Pylontech H3X Bridge controls and diagnostics.
 
@@ -54,7 +55,7 @@ Planned values can change when Nord Pool publishes new prices, the battery SOC c
 
 ## PV And Load Display
 
-The dashboard assumes `h3x-energy-arbitrage` `v0.7.0` or newer for the Shelly Pro 3EM, SMA Sunny Boy, and PV forecast entities. If those entities are not configured yet, the cards remain visible and show `unknown` until the arbitrage integration receives valid sensor data.
+The predictive dashboard assumes the `codex/predictive-dispatch-v1` branch of `h3x-energy-arbitrage` with manifest `1.0.0-beta.1` or newer. If historical data has not accumulated yet, the optimizer uses its live-load fallback and the forecast-quality cards remain unavailable until Recorder has enough samples.
 
 ## Entity IDs
 

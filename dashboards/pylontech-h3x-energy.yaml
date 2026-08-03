@@ -23,32 +23,46 @@ views:
 
           **Current price:** {% if price not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ price }} {{ currency }}/kWh{% else %}waiting for Nord Pool price data{% endif %}
 
-          **Estimated value:** {% if value not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ value }} {{ currency }} horizon / {{ today_value }} {{ currency }} today{% else %}waiting for price, SOC, and capacity data{% endif %}
+          **Economic outlook:** {% if value not in ['unknown', 'unavailable', 'none', 'None', ''] %}{{ value }} {{ currency }} expected savings over the active horizon / {{ today_value }} {{ currency }} today{% else %}waiting for price, SOC, capacity, and forecast data{% endif %}
 
           **Forecast inputs:** {{ load_source or 'load source unavailable' }}; {{ solar_source or 'solar forecast unavailable' }}
 
+          The schedule is recalculated every five minutes. Forecast uncertainty, conversion losses, battery wear, minimum action duration, Dutch tax/VAT, and grid limits are included before a command is issued.
+
       - type: entities
-        title: Arbitrage and PV controls
+        title: Optimizer controls
         show_header_toggle: false
         entities:
           - entity: select.pylontech_h3x_energy_arbitrage_strategy_profile
             name: Strategy profile
+          - entity: select.pylontech_h3x_energy_arbitrage_load_forecast_mode
+            name: Load forecast
+          - entity: select.pylontech_h3x_energy_arbitrage_ev_forecast_mode
+            name: EV analysis
           - entity: select.pylontech_h3x_energy_arbitrage_end_of_horizon_soc
             name: End-of-horizon SOC
-          - entity: select.pylontech_h3x_energy_arbitrage_discharge_power_mode
-            name: Discharge power mode
+          - entity: switch.pylontech_h3x_energy_arbitrage_dutch_retail_tariff
+            name: Dutch tax and VAT
           - entity: switch.pylontech_h3x_energy_arbitrage_periodic_full_charge
             name: Periodic full charge
+          - entity: number.pylontech_h3x_energy_arbitrage_load_history_window
+            name: Historical learning window
+          - entity: number.pylontech_h3x_energy_arbitrage_forecast_risk_percentile
+            name: Forecast risk percentile
+          - entity: number.pylontech_h3x_energy_arbitrage_minimum_action_duration
+            name: Minimum action duration
+          - entity: number.pylontech_h3x_energy_arbitrage_ev_detection_threshold
+            name: EV detection threshold
+          - entity: number.pylontech_h3x_energy_arbitrage_action_start_penalty
+            name: Action start penalty
+          - entity: number.pylontech_h3x_energy_arbitrage_direction_change_penalty
+            name: Direction change penalty
           - entity: number.pylontech_h3x_energy_arbitrage_periodic_full_charge_interval
             name: Full-charge interval
           - entity: number.pylontech_h3x_energy_arbitrage_periodic_full_charge_target_soc
             name: Full-charge target SOC
           - entity: number.pylontech_h3x_energy_arbitrage_periodic_full_charge_threshold_soc
             name: Full-charge threshold SOC
-          - entity: number.pylontech_h3x_energy_arbitrage_discharge_spread_price_tolerance
-            name: Discharge spread tolerance
-          - entity: number.pylontech_h3x_energy_arbitrage_discharge_spread_maximum_window
-            name: Discharge spread window
           - entity: number.pylontech_h3x_energy_arbitrage_maximum_charge_c_rate
             name: Maximum charge C-rate
           - entity: number.pylontech_h3x_energy_arbitrage_maximum_discharge_c_rate
@@ -61,6 +75,19 @@ views:
             name: PV panel Wp rating
           - entity: number.pylontech_h3x_energy_arbitrage_pv_inverter_limit
             name: PV inverter limit
+
+      - type: entities
+        title: Dutch retail price assumptions
+        show_header_toggle: false
+        entities:
+          - entity: number.pylontech_h3x_energy_arbitrage_vat
+            name: VAT
+          - entity: number.pylontech_h3x_energy_arbitrage_energy_tax_per_kwh
+            name: Energy tax excluding VAT
+          - entity: number.pylontech_h3x_energy_arbitrage_supplier_import_markup
+            name: Supplier import markup
+          - entity: number.pylontech_h3x_energy_arbitrage_supplier_export_deduction
+            name: Supplier export deduction
 
       - type: grid
         title: Current state
@@ -115,6 +142,18 @@ views:
             entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_power
             name: Forecast solar
             icon: mdi:weather-sunny
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_baseline_grid_cost
+            name: Baseline cost
+            icon: mdi:cash-remove
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_optimized_grid_cost
+            name: Optimized cost
+            icon: mdi:cash-check
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_load_forecast_mae
+            name: Forecast MAE
+            icon: mdi:target
 
       - type: markdown
         title: Planned actions
@@ -168,19 +207,21 @@ views:
 
           Idle diagnostic rows are hidden. Planned values can change whenever prices, SOC, load, PV forecast, or grid-limit readings update.
 
-          | Start | Action | Price | Power | Energy | Source/effect | Value |
-          |---|---|---:|---:|---:|---|---:|
+          | Start | Intent | Buy / sell | Power | Energy | Source/effect | Confidence | Value |
+          |---|---|---:|---:|---:|---|---:|---:|
           {% for slot in actionable[:10] %}
           {% set start = (slot.start | default('-'))[5:16] | replace('T', ' ') %}
-          {% set action = slot.action | default('-') | title %}
-          {% set price_value = (slot.price | default(0) | float(0)) | round(3) %}
+          {% set intent = (slot.intent | default(slot.action) | replace('_', ' ')) | title %}
+          {% set buy_value = (slot.buy_price | default(slot.price) | float(0)) | round(3) %}
+          {% set sell_value = (slot.sell_price | default(slot.price) | float(0)) | round(3) %}
           {% set power_value = ((slot.target_power_w | default(0) | float(0)) / 1000) | round(1) %}
           {% set energy_value = (slot.energy_kwh | default(0) | float(0)) | round(2) %}
           {% set value_value = (slot.value | default(0) | float(0)) | round(2) %}
-          {% set price_text = price_value ~ ' ' ~ currency ~ '/kWh' %}
+          {% set price_text = buy_value ~ ' / ' ~ sell_value %}
           {% set power_text = power_value ~ ' kW' %}
           {% set energy_text = energy_value ~ ' kWh' %}
           {% set value_text = value_value ~ ' ' ~ currency %}
+          {% set confidence = ((slot.forecast_confidence | default(0) | float(0)) * 100) | round(0) %}
           {% if slot.action == 'charge' %}
           {% set solar_kwh = (slot.solar_charge_kwh | default(0) | float(0)) | round(2) %}
           {% set grid_kwh = (slot.grid_charge_kwh | default(0) | float(0)) | round(2) %}
@@ -192,7 +233,7 @@ views:
           {% else %}
           {% set split = '-' %}
           {% endif %}
-          | {{ start }} | {{ action }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ value_text }} |
+          | {{ start }} | {{ intent }} | {{ price_text }} | {{ power_text }} | {{ energy_text }} | {{ split }} | {{ confidence }}% | {{ value_text }} |
           {% endfor %}
           {% if actionable | count > 10 %}
           Showing the first 10 of {{ actionable | count }} planned charge/discharge rows.
@@ -312,6 +353,21 @@ views:
             show: true
         series:
           - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Load p10
+            yaxis_id: power
+            type: line
+            curve: smooth
+            color: "#bdbdbd"
+            stroke_width: 1
+            opacity: 0.55
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.p10_w || 0) / 1000;
+                return Number.isFinite(start) && Number.isFinite(kw) ? [start, kw] : null;
+              }).filter(Boolean);
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
             name: Forecast load
             yaxis_id: power
             type: line
@@ -326,6 +382,21 @@ views:
                 if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(kw)) return [];
                 return [[start, kw], [end, kw]];
               });
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
+            name: Load p90
+            yaxis_id: power
+            type: line
+            curve: smooth
+            color: "#616161"
+            stroke_width: 1
+            opacity: 0.65
+            data_generator: |
+              const forecast = entity.attributes.load_forecast || [];
+              return forecast.map((slot) => {
+                const start = new Date(slot.start).getTime();
+                const kw = Number(slot.p90_w || 0) / 1000;
+                return Number.isFinite(start) && Number.isFinite(kw) ? [start, kw] : null;
+              }).filter(Boolean);
           - entity: sensor.pylontech_h3x_energy_arbitrage_price_plan
             name: Forecast solar
             yaxis_id: power
@@ -464,6 +535,26 @@ views:
             name: Today's value
             icon: mdi:cash-clock
           - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_baseline_grid_cost
+            name: Without optimization
+            icon: mdi:cash-remove
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_optimized_grid_cost
+            name: With optimization
+            icon: mdi:cash-check
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_modeled_cycle_cost
+            name: Battery wear cost
+            icon: mdi:battery-heart-variant
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_modeled_transition_cost
+            name: Action penalties
+            icon: mdi:swap-horizontal
+          - type: tile
+            entity: sensor.pylontech_h3x_energy_arbitrage_planned_equivalent_full_cycles
+            name: Planned full cycles
+            icon: mdi:battery-sync
+          - type: tile
             entity: sensor.pylontech_h3x_energy_arbitrage_first_slot_value
             name: Current slot value
             icon: mdi:clock-fast
@@ -555,6 +646,34 @@ views:
             entity: sensor.pylontech_h3x_energy_arbitrage_decision
             attribute: solar_forecast_scale
             name: Solar forecast scale
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: load_forecast_source
+            name: Load model
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: load_forecast_days
+            name: Training days
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: load_forecast_observations
+            name: Training quarters
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: load_forecast_mae_w
+            name: Backtest MAE
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: load_forecast_bias_w
+            name: Backtest bias
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: ev_forecast_mode
+            name: EV model
+          - type: attribute
+            entity: sensor.pylontech_h3x_energy_arbitrage_decision
+            attribute: ev_sessions_detected
+            name: EV sessions learned
           - type: attribute
             entity: sensor.pylontech_h3x_energy_arbitrage_decision
             attribute: pv_orientation

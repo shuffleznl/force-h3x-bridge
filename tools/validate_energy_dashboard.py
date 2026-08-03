@@ -55,6 +55,15 @@ def main() -> None:
         "number.pylontech_h3x_energy_arbitrage_pv_panel_count",
         "number.pylontech_h3x_energy_arbitrage_pv_panel_wp_rating",
         "number.pylontech_h3x_energy_arbitrage_pv_inverter_limit",
+        "select.pylontech_h3x_energy_arbitrage_load_forecast_mode",
+        "select.pylontech_h3x_energy_arbitrage_ev_forecast_mode",
+        "switch.pylontech_h3x_energy_arbitrage_dutch_retail_tariff",
+        "number.pylontech_h3x_energy_arbitrage_forecast_risk_percentile",
+        "number.pylontech_h3x_energy_arbitrage_minimum_action_duration",
+        "sensor.pylontech_h3x_energy_arbitrage_baseline_grid_cost",
+        "sensor.pylontech_h3x_energy_arbitrage_optimized_grid_cost",
+        "sensor.pylontech_h3x_energy_arbitrage_modeled_cycle_cost",
+        "sensor.pylontech_h3x_energy_arbitrage_load_forecast_mae",
         "sensor.pylontech_h3x_energy_arbitrage_home_load_power",
         "sensor.pylontech_h3x_energy_arbitrage_solar_power",
         "sensor.pylontech_h3x_energy_arbitrage_forecast_load_power",
@@ -73,10 +82,13 @@ def main() -> None:
         "solar_charge_kwh",
         "self_consumption_kwh",
         "battery_export_kwh",
+        "forecast_confidence",
+        "p10_w",
+        "p90_w",
     ):
         require(dashboard, token, "dashboard")
 
-    require(dashboards_readme, "`v0.7.0` or newer", "dashboard README")
+    require(dashboards_readme, "`1.0.0-beta.1` or newer", "dashboard README")
     require(root_readme, "Shelly/SMA load and solar data", "root README")
 
 
