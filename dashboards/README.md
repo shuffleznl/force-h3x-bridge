@@ -52,9 +52,15 @@ The optimizer exposes a full `dispatch_plan` with one row per price interval, in
 
 Planned values can change when Nord Pool publishes new prices, the battery SOC changes, the house load changes, the SMA/PV forecast changes, or grid-limit sensors update.
 
-## PV And Load Display
+## PV And Load Configuration
 
 The dashboard assumes `h3x-energy-arbitrage` `v0.7.0` or newer for the Shelly Pro 3EM, SMA Sunny Boy, and PV forecast entities. If those entities are not configured yet, the cards remain visible and show `unknown` until the arbitrage integration receives valid sensor data.
+
+The **Forecast configuration** card contains the editable PV orientation,
+panel-count, panel-Wp, and inverter-limit controls. A forecast source of
+`disabled_panel_config` means panel count or panel Wp is still zero. The
+**Configure Shelly and SMA source entities** button opens the integration page;
+use the integration gear there to select the actual load and PV power entities.
 
 ## Entity IDs
 
@@ -65,4 +71,10 @@ The dashboard assumes the default entity IDs created by:
 
 For the arbitrage integration, Home Assistant prefixes entities with the device name by default, for example `sensor.pylontech_h3x_energy_arbitrage_decision` and `sensor.pylontech_h3x_energy_arbitrage_price_plan`.
 
-If Home Assistant adds suffixes such as `_2`, edit the dashboard YAML and replace the entity IDs.
+If Home Assistant adds suffixes such as `_2`, or an entity was manually renamed,
+edit the dashboard YAML and replace the entity IDs using the values shown in
+Developer Tools > States.
+
+Control groups use Home Assistant's built-in `entity-filter` card. Controls
+that do not exist in an older companion-integration version, or are unavailable,
+are omitted instead of rendering repeated entity-not-found rows.

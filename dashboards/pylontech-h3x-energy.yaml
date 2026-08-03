@@ -16,6 +16,8 @@ views:
           {% set currency = state_attr(plan_entity, 'currency') or 'EUR' %}
           {% set load_source = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'home_load_power_source') %}
           {% set solar_source = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'solar_forecast_source') %}
+          {% set panel_count = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'pv_panel_count') | float(0) %}
+          {% set panel_wp = state_attr('sensor.pylontech_h3x_energy_arbitrage_decision', 'pv_panel_wp') | float(0) %}
 
           **Decision:** {{ decision if decision not in ['unknown', 'unavailable', 'none', 'None', ''] else 'waiting for optimizer data' }}
 
@@ -27,9 +29,13 @@ views:
 
           **Forecast inputs:** {{ load_source or 'load source unavailable' }}; {{ solar_source or 'solar forecast unavailable' }}
 
-      - type: entities
-        title: Arbitrage and PV controls
-        show_header_toggle: false
+          {% if solar_source == 'disabled_panel_config' or panel_count <= 0 or panel_wp <= 0 %}
+          **Solar forecast needs configuration:** set both **PV panel count** and **PV panel Wp rating** in Forecast configuration below. A zero value intentionally disables the panel model.
+          {% elif solar_source in ['panel_model', 'panel_model_calibrated_by_sma_power'] %}
+          **Solar forecast active:** {{ panel_count | int }} panels at {{ panel_wp | int }} Wp using {{ solar_source | replace('_', ' ') }}.
+          {% endif %}
+
+      - type: entity-filter
         entities:
           - entity: select.pylontech_h3x_energy_arbitrage_strategy_profile
             name: Strategy profile
@@ -53,6 +59,19 @@ views:
             name: Maximum charge C-rate
           - entity: number.pylontech_h3x_energy_arbitrage_maximum_discharge_c_rate
             name: Maximum discharge C-rate
+        conditions:
+          - condition: state
+            state_not:
+              - unknown
+              - unavailable
+        card:
+          type: entities
+          title: Arbitrage controls
+          show_header_toggle: false
+        show_empty: false
+
+      - type: entity-filter
+        entities:
           - entity: select.pylontech_h3x_energy_arbitrage_pv_orientation
             name: PV orientation
           - entity: number.pylontech_h3x_energy_arbitrage_pv_panel_count
@@ -61,6 +80,24 @@ views:
             name: PV panel Wp rating
           - entity: number.pylontech_h3x_energy_arbitrage_pv_inverter_limit
             name: PV inverter limit
+        conditions:
+          - condition: state
+            state_not:
+              - unknown
+              - unavailable
+        card:
+          type: entities
+          title: Forecast configuration
+          show_header_toggle: false
+        show_empty: false
+
+      - type: button
+        name: Configure Shelly and SMA source entities
+        icon: mdi:cog-transfer-outline
+        show_state: false
+        tap_action:
+          action: navigate
+          navigation_path: /config/integrations/integration/h3x_energy_arbitrage
 
       - type: grid
         title: Current state
@@ -99,22 +136,32 @@ views:
             entity: sensor.pylontech_h3x_bridge_battery_power
             name: Battery power
             icon: mdi:battery-charging
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_home_load_power
+
+      - type: entity-filter
+        entities:
+          - entity: sensor.pylontech_h3x_energy_arbitrage_home_load_power
             name: Home load
             icon: mdi:home-lightning-bolt
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_solar_power
+          - entity: sensor.pylontech_h3x_energy_arbitrage_solar_power
             name: Solar power
             icon: mdi:solar-power
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_power
+          - entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_power
             name: Forecast load
             icon: mdi:home-analytics
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_power
+          - entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_power
             name: Forecast solar
             icon: mdi:weather-sunny
+        conditions:
+          - condition: state
+            state_not:
+              - unknown
+              - unavailable
+        card:
+          type: glance
+          title: Live forecast inputs
+          show_name: true
+          show_state: true
+        show_empty: false
 
       - type: markdown
         title: Planned actions
@@ -450,71 +497,62 @@ views:
               func: avg
               duration: 15min
 
-      - type: grid
-        title: Estimated value and energy balance
-        columns: 3
-        square: false
-        cards:
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_estimated_savings
+      - type: entity-filter
+        entities:
+          - entity: sensor.pylontech_h3x_energy_arbitrage_estimated_savings
             name: Horizon value
             icon: mdi:cash-multiple
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_estimated_savings_today
+          - entity: sensor.pylontech_h3x_energy_arbitrage_estimated_savings_today
             name: Today's value
             icon: mdi:cash-clock
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_first_slot_value
+          - entity: sensor.pylontech_h3x_energy_arbitrage_first_slot_value
             name: Current slot value
             icon: mdi:clock-fast
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_charge_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_charge_energy
             name: Planned charge
             icon: mdi:battery-plus
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_discharge_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_discharge_energy
             name: Planned discharge
             icon: mdi:battery-minus
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_grid_charge_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_grid_charge_energy
             name: Grid charge
             icon: mdi:transmission-tower-import
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_solar_charge_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_solar_charge_energy
             name: Solar charge
             icon: mdi:solar-power-variant
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_self_consumption_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_self_consumption_energy
             name: Battery to home
             icon: mdi:home-battery
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_planned_battery_export_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_planned_battery_export_energy
             name: Battery export
             icon: mdi:transmission-tower-export
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_forecast_load_energy
             name: Forecast load energy
             icon: mdi:home-analytics
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_energy
+          - entity: sensor.pylontech_h3x_energy_arbitrage_forecast_solar_energy
             name: Forecast solar energy
             icon: mdi:solar-power
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_price_slots_available
+          - entity: sensor.pylontech_h3x_energy_arbitrage_price_slots_available
             name: Price slots
             icon: mdi:calendar-clock
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_battery_system_capacity
+          - entity: sensor.pylontech_h3x_energy_arbitrage_battery_system_capacity
             name: System capacity
             icon: mdi:battery-high
-          - type: tile
-            entity: sensor.pylontech_h3x_energy_arbitrage_battery_usable_capacity
+          - entity: sensor.pylontech_h3x_energy_arbitrage_battery_usable_capacity
             name: Usable capacity
             icon: mdi:battery-check
+        conditions:
+          - condition: state
+            state_not:
+              - unknown
+              - unavailable
+        card:
+          type: entities
+          title: Estimated value and energy balance
+          show_header_toggle: false
+        show_empty: false
 
-      - type: entities
-        title: Pylontech H3X controls
-        show_header_toggle: false
+      - type: entity-filter
         entities:
           - entity: select.pylontech_h3x_bridge_ems_mode
             name: EMS mode
@@ -534,9 +572,19 @@ views:
             name: BMS temperature
           - entity: sensor.pylontech_h3x_bridge_bms_soh
             name: BMS SOH
+        conditions:
+          - condition: state
+            state_not:
+              - unknown
+              - unavailable
+        card:
+          type: entities
+          title: Pylontech H3X controls
+          show_header_toggle: false
+        show_empty: false
 
       - type: entities
-        title: Forecast diagnostics
+        title: Forecast status
         show_header_toggle: false
         entities:
           - type: attribute
@@ -555,18 +603,6 @@ views:
             entity: sensor.pylontech_h3x_energy_arbitrage_decision
             attribute: solar_forecast_scale
             name: Solar forecast scale
-          - type: attribute
-            entity: sensor.pylontech_h3x_energy_arbitrage_decision
-            attribute: pv_orientation
-            name: PV orientation
-          - type: attribute
-            entity: sensor.pylontech_h3x_energy_arbitrage_decision
-            attribute: pv_panel_count
-            name: PV panel count
-          - type: attribute
-            entity: sensor.pylontech_h3x_energy_arbitrage_decision
-            attribute: pv_panel_wp
-            name: PV panel Wp
           - type: attribute
             entity: sensor.pylontech_h3x_energy_arbitrage_decision
             attribute: pv_peak_power_w

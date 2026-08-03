@@ -73,8 +73,19 @@ def main() -> None:
         "solar_charge_kwh",
         "self_consumption_kwh",
         "battery_export_kwh",
+        "title: Forecast configuration",
+        "Configure Shelly and SMA source entities",
+        "/config/integrations/integration/h3x_energy_arbitrage",
+        "disabled_panel_config",
+        "type: entity-filter",
+        "state_not:",
+        "show_empty: false",
+        "number.pylontech_h3x_bridge_charge_discharge_power_ref",
+        "number.pylontech_h3x_bridge_discharge_limit_soc_eps",
     ):
         require(dashboard, token, "dashboard")
+
+    reject(dashboard, "title: Forecast diagnostics", "dashboard")
 
     require(dashboards_readme, "`v0.7.0` or newer", "dashboard README")
     require(root_readme, "Shelly/SMA load and solar data", "root README")
