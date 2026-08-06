@@ -8,7 +8,7 @@ custom_components/pylontech_h3x_bridge/
 
 It is based on `wietse108/HA-pylontech-force-H3X`, but uses its own domain (`pylontech_h3x_bridge`) so it can be installed without conflicting with the original integration. The patch changes the Modbus write path for the manufacturer-documented EMS control registers.
 
-Repository metadata points to `https://github.com/shuffleznl/pylontech-fh3x-bridge`; code ownership is set to `@shufflez`, `@shuffleznl`, and `@openai`.
+Repository metadata points to `https://github.com/shuffleznl/h3x-bridge`; code ownership is set to `@shufflez`, `@shuffleznl`, and `@openai`.
 
 ## Manufacturer Register Findings
 
@@ -50,7 +50,7 @@ The document also states the device only supports Modbus TCP, default external L
 
 7. The bridge exposes `sensor.pylontech_h3x_bridge_battery_module_count` from BMS/ESS register `5174`.
 
-   This lets the arbitrage integration derive Force H3 capacity from the actual number of stacked modules instead of relying on a manually entered kWh value.
+   This lets Home Assistant automations and external energy managers derive Force H3 capacity from the actual number of stacked modules instead of relying on a manually entered kWh value.
 
 8. The bridge derives datasheet capacity sensors from that module count:
 
@@ -83,4 +83,4 @@ After restart:
    - `0` should stop forced charge/discharge reference.
    - `10` should request discharging at `10%`.
 
-The BMS and inverter remain the final safety layer. Start with small percentages and verify actual battery/grid power before enabling a fully automated arbitrage loop.
+The BMS and inverter remain the final safety layer. Start with small percentages and verify actual battery/grid power before enabling automated control.

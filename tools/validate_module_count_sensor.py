@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Validate Force H3 module-count wiring across bridge and arbitrage repos."""
+"""Validate Force H3 module-count wiring in the bridge."""
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = ROOT / "custom_components" / "pylontech_h3x_bridge"
-ARBITRAGE = ROOT / "h3x-energy-arbitrage" / "custom_components" / "h3x_energy_arbitrage"
 
 
 def read(path: Path) -> str:
@@ -65,7 +63,7 @@ def main() -> None:
     require(sensor, 'key="battery_usable_capacity"', "bridge sensor")
     require(sensor, 'key="battery_usable_capacity_theoretical"', "bridge sensor")
     require(sensor, 'key="battery_usable_capacity_deviation_pct"', "bridge sensor")
-    require(manifest, '"version": "0.3.8"', "bridge manifest")
+    require(manifest, '"version": "0.3.9"', "bridge manifest")
 
     assignments = literal_assignments(coordinator)
     system_capacity = assignments["FORCE_H3_SYSTEM_CAPACITY_KWH"]
@@ -90,47 +88,6 @@ def main() -> None:
                 f"{deviation_pct:.2f}% from 95% DoD theoretical"
             )
 
-    if not ARBITRAGE.exists():
-        print("arbitrage repo not present; skipped cross-repo validation")
-        return
-
-    arbitrage_const = read(ARBITRAGE / "const.py")
-    arbitrage_coordinator = read(ARBITRAGE / "coordinator.py")
-    require(
-        arbitrage_const,
-        '"sensor.pylontech_h3x_bridge_battery_module_count"',
-        "arbitrage default module-count entity",
-    )
-    require(
-        arbitrage_const,
-        '"sensor.pylontech_h3x_bridge_battery_system_capacity"',
-        "arbitrage default system-capacity entity",
-    )
-    require(
-        arbitrage_const,
-        '"sensor.pylontech_h3x_bridge_battery_usable_capacity"',
-        "arbitrage default usable-capacity entity",
-    )
-    require(
-        arbitrage_coordinator,
-        "module_count_from_entity = self._state_float(module_entity)",
-        "arbitrage module-count read",
-    )
-    require(
-        arbitrage_coordinator,
-        "capacity_kwh = usable_capacity_kwh",
-        "arbitrage usable-capacity optimizer basis",
-    )
-    require(
-        arbitrage_coordinator,
-        "self._system_capacity_for_modules(module_count)",
-        "arbitrage system-capacity application",
-    )
-    require(
-        arbitrage_coordinator,
-        "self._usable_capacity_for_modules(module_count)",
-        "arbitrage usable-capacity application",
-    )
 
 
 if __name__ == "__main__":
