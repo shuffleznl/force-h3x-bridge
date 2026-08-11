@@ -6,9 +6,7 @@ This repository contains the HACS-installable **Pylontech H3X Bridge** Home Assi
 | --- | --- | --- |
 | Pylontech H3X Bridge | `pylontech_h3x_bridge` | Local Modbus TCP bridge for Force H3X sensors and controls. |
 
-The companion energy optimizer is maintained separately in the [H3X Energy Arbitrage repository](https://github.com/shuffleznl/h3x-energy-arbitrage).
-
-Pylontech H3X Bridge exposes the H3X sensors and writable Modbus controls needed by Home Assistant automations and external optimizers.
+Pylontech H3X Bridge exposes the H3X sensors and writable Modbus controls needed by Home Assistant automations and energy-management systems.
 
 ## What It Controls
 

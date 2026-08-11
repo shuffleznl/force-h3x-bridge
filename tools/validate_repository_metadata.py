@@ -21,15 +21,18 @@ def main() -> None:
     if manifest["issue_tracker"] != f"{REPOSITORY_URL}/issues":
         raise AssertionError("manifest issue tracker points to the wrong repository")
     if manifest.get("dependencies"):
-        raise AssertionError("bridge must remain independent of optimizer integrations")
+        raise AssertionError("bridge must remain independent of control integrations")
 
     if (ROOT / "dashboards").exists() or (COMPONENT / "dashboards").exists():
-        raise AssertionError("optimizer dashboards must not be packaged by the bridge")
+        raise AssertionError("control dashboards must not be packaged by the bridge")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    companion_link = "https://github.com/shuffleznl/h3x-energy-" + "arbi" + "trage"
-    if readme.count(companion_link) != 1:
-        raise AssertionError("README must contain one companion optimizer link")
+    forbidden = ("nord" + "pool", "arbi" + "trage")
+    for reference in forbidden:
+        if reference in readme.lower():
+            raise AssertionError(
+                f"bridge README contains unrelated controller reference: {reference}"
+            )
 
 
 if __name__ == "__main__":
