@@ -34,6 +34,22 @@ def main() -> None:
                 f"bridge README contains unrelated controller reference: {reference}"
             )
 
+    required_register_documentation = (
+        "## Modbus Entity And Register Map",
+        "### Inverter Telemetry (Slave 2)",
+        "### ESS/BMS Telemetry (Slave 1)",
+        "### Writable Controls (Slave 2)",
+        "### Time-Slot And Clock Registers (Slave 2)",
+        "`40901` (`0x9FC5`)",
+        "`40907` (`0x9FCB`)",
+        "`5174` (`0x1436`)",
+    )
+    for reference in required_register_documentation:
+        if reference not in readme:
+            raise AssertionError(
+                f"bridge README is missing Modbus register documentation: {reference}"
+            )
+
 
 if __name__ == "__main__":
     main()

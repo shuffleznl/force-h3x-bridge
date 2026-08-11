@@ -6,7 +6,7 @@ This repository contains the HACS-installable **Pylontech H3X Bridge** Home Assi
 | --- | --- | --- |
 | Pylontech H3X Bridge | `pylontech_h3x_bridge` | Local Modbus TCP bridge for Force H3X sensors and controls. |
 
-Pylontech H3X Bridge exposes the H3X sensors and writable Modbus controls needed by Home Assistant automations and energy-management systems.
+Pylontech H3X Bridge exposes the H3X sensors and writable Modbus controls needed by Home Assistant automations and energy-management systems. The register map below follows the integration implementation and the manufacturer document **ModBus Protocol Pylon FH3X V1.2 (2025-08-11)**.
 
 ## What It Controls
 
@@ -27,6 +27,105 @@ Default entity IDs are based on a clean Pylontech H3X Bridge install:
 
 The H3X integration writes Modbus register `40907` for EMS mode and `40901` for the signed charge/discharge power reference. It must be in `User mode` while forcing charge or discharge.
 
+## Modbus Entity And Register Map
+
+The entity IDs below are the defaults for a clean installation. Home Assistant may append a suffix when an entity ID already exists, and user-renamed entity IDs are not changed back by the integration. Register addresses are shown exactly as they are placed in the Modbus TCP request; do not prepend `4` or apply a one-register offset when comparing them with integration logs.
+
+All values are read with function `0x03` (Read Holding Registers). Single-register writes use `0x06`; contiguous and 32-bit writes use `0x10`. Multi-register values use high word first (big-endian word and byte order).
+
+### Inverter Telemetry (Slave 2)
+
+| Default entity | Register(s), decimal (hex) | Raw type / scale | Notes |
+| --- | --- | --- | --- |
+| `sensor.pylontech_h3x_bridge_ac_total_power` | `30100-30101` (`0x7594-0x7595`) | `S32`, `1 W` | Total inverter AC power. |
+| `sensor.pylontech_h3x_bridge_grid_total_power` | `30108-30109` (`0x759C-0x759D`) | `S32`, `1 W` | Signed grid power as reported by the inverter. |
+| `sensor.pylontech_h3x_bridge_load_power` | Derived | `W` | Calculated as AC total power plus grid total power; it is not a separate register read. |
+| `sensor.pylontech_h3x_bridge_inverter_status` | `30115` (`0x75A3`) | `U16` | Raw manufacturer status code. |
+| `sensor.pylontech_h3x_bridge_pv1_voltage` | `30119` (`0x75A7`) | `U16 x 0.1 V` | PV input 1 voltage. |
+| `sensor.pylontech_h3x_bridge_pv1_current` | `30120` (`0x75A8`) | `U16 x 0.1 A` | PV input 1 current. |
+| `sensor.pylontech_h3x_bridge_pv2_voltage` | `30121` (`0x75A9`) | `U16 x 0.1 V` | PV input 2 voltage. |
+| `sensor.pylontech_h3x_bridge_pv2_current` | `30122` (`0x75AA`) | `U16 x 0.1 A` | PV input 2 current. |
+| `sensor.pylontech_h3x_bridge_pv3_voltage` | `30123` (`0x75AB`) | `U16 x 0.1 V` | PV input 3 voltage. |
+| `sensor.pylontech_h3x_bridge_pv3_current` | `30124` (`0x75AC`) | `U16 x 0.1 A` | PV input 3 current. |
+| `sensor.pylontech_h3x_bridge_pv_total_power` | `30127-30128` (`0x75AF-0x75B0`) | `S32`, `1 W` | Total PV power. |
+| `sensor.pylontech_h3x_bridge_pv_total_energy` | `30129-30130` (`0x75B1-0x75B2`) | IEEE-754 `Float32`, `kWh` | Cumulative PV energy. |
+| `sensor.pylontech_h3x_bridge_grid_voltage_r` | `30131` (`0x75B3`) | `U16 x 0.1 V` | Grid phase R voltage. |
+| `sensor.pylontech_h3x_bridge_grid_voltage_s` | `30133` (`0x75B5`) | `U16 x 0.1 V` | Grid phase S voltage; `30132` is skipped by this integration. |
+| `sensor.pylontech_h3x_bridge_grid_voltage_t` | `30135` (`0x75B7`) | `U16 x 0.1 V` | Grid phase T voltage; `30134` is skipped by this integration. |
+| `sensor.pylontech_h3x_bridge_ac_frequency` | `30140` (`0x75BC`) | `U16 x 0.01 Hz` | AC frequency. |
+| `sensor.pylontech_h3x_bridge_inverter_temperature` | `30146` (`0x75C2`) | `S16 x 0.1 C` | Inverter temperature. |
+| `sensor.pylontech_h3x_bridge_heatsink_temperature` | `30147` (`0x75C3`) | `S16 x 0.1 C` | Heatsink temperature. |
+| `sensor.pylontech_h3x_bridge_total_grid_import` | `30156-30157` (`0x75CC-0x75CD`) | IEEE-754 `Float32`, `kWh` | Cumulative grid import. |
+| `sensor.pylontech_h3x_bridge_total_grid_export` | `30158-30159` (`0x75CE-0x75CF`) | IEEE-754 `Float32`, `kWh` | Cumulative grid export. |
+| `sensor.pylontech_h3x_bridge_battery_status` | `30161` (`0x75D1`) | `U16` enum | `0` Sleep, `1` Charging, `2` Discharging, `3` Idle, `4` Standby, `5` Run, `6` Fault, `7` Offline. |
+| `sensor.pylontech_h3x_bridge_battery_power` | `30162-30163` (`0x75D2-0x75D3`) | `S32`, `1 W` | Signed battery power as reported by the inverter. |
+| `sensor.pylontech_h3x_bridge_battery_voltage` | `30164` (`0x75D4`) | `U16 x 0.1 V` | Battery voltage. |
+| `sensor.pylontech_h3x_bridge_battery_current` | `30165` (`0x75D5`) | `S16 x 0.1 A` | Signed battery current. |
+| `sensor.pylontech_h3x_bridge_total_battery_charge` | `30174-30175` (`0x75DE-0x75DF`) | IEEE-754 `Float32`, `kWh` | Cumulative charged energy. |
+| `sensor.pylontech_h3x_bridge_total_battery_discharge` | `30176-30177` (`0x75E0-0x75E1`) | IEEE-754 `Float32`, `kWh` | Cumulative discharged energy. |
+| `sensor.pylontech_h3x_bridge_battery_soc` | `30182` (`0x75E6`) | `U16`, `%` | Inverter-side battery state of charge. |
+
+### ESS/BMS Telemetry (Slave 1)
+
+| Default entity | Register(s), decimal (hex) | Raw type / scale | Notes |
+| --- | --- | --- | --- |
+| `sensor.pylontech_h3x_bridge_bms_voltage` | `5123` (`0x1403`) | `U16 x 0.1 V` | BMS-reported pack voltage. |
+| `sensor.pylontech_h3x_bridge_bms_temperature` | `5126` (`0x1406`) | `S16 x 0.1 C` | BMS temperature. |
+| `sensor.pylontech_h3x_bridge_bms_soc` | `5127` (`0x1407`) | `U16`, `%` | BMS state of charge. |
+| `sensor.pylontech_h3x_bridge_bms_cycles` | `5128` (`0x1408`) | `U16`, cycles | BMS cycle counter. |
+| `sensor.pylontech_h3x_bridge_bms_cell_voltage_max` | `5136` (`0x1410`) | `U16 x 0.001 V` | Optional; some firmware returns Modbus exception `2` (illegal address). |
+| `sensor.pylontech_h3x_bridge_bms_cell_voltage_min` | `5137` (`0x1411`) | `U16 x 0.001 V` | Optional; unavailable together with the maximum-cell register on affected firmware. |
+| `sensor.pylontech_h3x_bridge_bms_soh` | `5152` (`0x1420`) | `U16`, `%` | BMS state of health. |
+| `sensor.pylontech_h3x_bridge_battery_module_count` | `5174` (`0x1436`) | `U16`, modules | Optional manufacturer field "Module number in series"; ESS base `0x1400` plus offset `0x0036`. |
+| `sensor.pylontech_h3x_bridge_battery_system_capacity` | Derived from `5174` | `kWh` | Datasheet system capacity for 2-7 Force H3 modules: `10.24`, `15.36`, `20.48`, `25.60`, `30.72`, or `35.84`. |
+| `sensor.pylontech_h3x_bridge_battery_usable_capacity` | Derived from `5174` | `kWh` | Datasheet usable capacity: `9.69`, `14.73`, `19.48`, `24.32`, `29.17`, or `34.01`. |
+| `sensor.pylontech_h3x_bridge_battery_usable_capacity_theoretical` | Derived from `5174` | `kWh` | System capacity multiplied by the datasheet `95%` depth of discharge. |
+| `sensor.pylontech_h3x_bridge_battery_usable_capacity_deviation` | Derived from `5174` | `%` | Absolute deviation between datasheet usable capacity and the theoretical 95%-DoD value. |
+
+### Writable Controls (Slave 2)
+
+| Default entity | Register(s), decimal (hex) | Raw type / scale | Allowed UI values and behavior |
+| --- | --- | --- | --- |
+| `number.pylontech_h3x_bridge_charge_discharge_power_ref` | `40901` (`0x9FC5`) | `S16`, `0.1Pn%` | Whole percentages `-100..100`. Negative charges; positive discharges; zero stops the forced reference. A nonzero write first sets `40907 = 4`. |
+| `number.pylontech_h3x_bridge_charge_limit_soc` | `40902` (`0x9FC6`) | `U16`, `%` | `50..100%`. |
+| `number.pylontech_h3x_bridge_discharge_limit_soc_eps` | `40903` (`0x9FC7`) | `U16`, `%` | `5..100%`; manufacturer EPS discharge limit. |
+| `select.pylontech_h3x_bridge_ems_mode` | `40907` (`0x9FCB`) | `U16` enum | `0` Self-Consumption, `1` Back up, `2` Off-Grid, `3` Feed in priority, `4` User, `5` PN-Customer. |
+| `number.pylontech_h3x_bridge_meter_max_power_export` | `40401-40402` (`0x9DD1-0x9DD2`) | `S32`, `1 W` | UI range `-20000..-1 W`, written high word first. Verify the sign and applicable grid-code setting on the specific inverter before changing it. |
+| `switch.pylontech_h3x_bridge_heat_pump` | `40848` (`0x9F90`) | `U16` boolean | Writes `0` or `1`. This is the inverter's heat-pump control flag, not a generic external heat-pump relay. |
+| `switch.pylontech_h3x_bridge_period_1` | `40908` (`0x9FCC`) | `U16` boolean | Enables/disables time slot 1. |
+| `switch.pylontech_h3x_bridge_period_2` | `40914` (`0x9FD2`) | `U16` boolean | Enables/disables time slot 2. |
+| `switch.pylontech_h3x_bridge_period_3` | `40920` (`0x9FD8`) | `U16` boolean | Enables/disables time slot 3. |
+| `switch.pylontech_h3x_bridge_period_4` | `40926` (`0x9FDE`) | `U16` boolean | Enables/disables time slot 4. |
+
+Register `40400` (`0x9DD0`, `U16`) is read with the export limit to preserve the contiguous source block, but the current integration does not expose it as a Home Assistant entity.
+
+### Time-Slot And Clock Registers (Slave 2)
+
+Each of the four time slots occupies six contiguous holding registers:
+
+| Slot | Enable | Start | End | Mode | Power | Weekday mask |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | `40908` | `40909` | `40910` | `40911` | `40912` | `40913` |
+| 2 | `40914` | `40915` | `40916` | `40917` | `40918` | `40919` |
+| 3 | `40920` | `40921` | `40922` | `40923` | `40924` | `40925` |
+| 4 | `40926` | `40927` | `40928` | `40929` | `40930` | `40931` |
+
+- Enable is `0` (disabled) or `1` (enabled).
+- Start and end are packed as `(hour << 8) | minute`.
+- Slot mode is `0` for charge or `1` for discharge.
+- Slot power is `U16` in `0.1Pn%`; for example, `10%` is written as `100`.
+- The services currently use weekday mask `0x7F` for every day.
+- A slot is programmed atomically at integration level: disable, write registers, set EMS mode, then enable. Do not run a second Modbus client concurrently.
+
+When clock synchronization is enabled, the integration writes:
+
+| Register | Packed value |
+| --- | --- |
+| `40932` (`0x9FE4`) | Year |
+| `40933` (`0x9FE5`) | `(month << 8) | day` |
+| `40934` (`0x9FE6`) | `(hour << 8) | minute` |
+| `40935` (`0x9FE7`) | `(second << 8) | weekday`, where Sunday is `0` |
+
 ## HACS Installation
 
 1. In HACS, add `https://github.com/shuffleznl/h3x-bridge` as a custom repository of type **Integration**.
@@ -44,8 +143,10 @@ The H3X integration writes Modbus register `40907` for EMS mode and `40901` for 
 
 ## Operational Notes
 
+- The manufacturer protocol lists Modbus TCP endpoint `172.22.184.210:502` as the factory default. Configure the address actually assigned to the inverter; the host and port can be updated from the integration options.
 - Register `40901` is written as signed `S16`: negative values charge, positive values discharge.
 - Home Assistant exposes `40901` as whole percent values from `-100` to `100`; the integration converts that to the raw Modbus `0.1Pn%` signed integer.
+- `Pn%` is a percentage of the inverter's rated power, not a kW command. Confirm the applicable inverter rating and start with a small magnitude while observing physical battery and grid power.
 - The integration always sets EMS mode `40907` to `4` (`User mode`) before nonzero charge/discharge power writes.
 - The integration uses a small raw Modbus TCP transport instead of PyModbus. Requests stay serialized on one socket, and late duplicate ACK frames are discarded until the matching transaction id is received.
 - The integration performs its own locked write retries and keeps confirmation reads on the normal polling cycle.
@@ -53,6 +154,7 @@ The H3X integration writes Modbus register `40907` for EMS mode and `40901` for 
 - Total and usable capacity are derived from the Force H3 datasheet table for the detected module count. The derived usable capacity is checked against the 95% depth-of-discharge theoretical value and exposed with a deviation percentage.
 - IP and port can be changed later from **Settings > Devices & services > Pylontech H3X Bridge > Configure**.
 - Keep only one Modbus client connected to the inverter. Disable the original `pylon_fh3x` integration and other polling tools for the same H3X while using Pylontech H3X Bridge; concurrent TCP sessions can desynchronize Modbus transaction IDs.
+- Firmware, grid-code, BMS, SOC, temperature, and protection interlocks can reject or suppress an otherwise valid command. Verify control writes at low power on the actual installation; a successful register read-back does not by itself prove physical charge or discharge.
 
 ## Time-Slot Services
 
